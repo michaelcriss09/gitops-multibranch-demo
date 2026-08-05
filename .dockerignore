@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+junit.xml
+tests
+.git
+.github
+*.md
+.eslintrc.cjs
+jest.config.js

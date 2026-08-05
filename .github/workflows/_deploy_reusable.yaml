@@ -1,0 +1,129 @@
+name: DEPLOY
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      cluster:
+        required: true
+        type: string
+      service:
+        required: true
+        type: string
+      image-tag:
+        required: true
+        type: string
+      skip-smoke-tests:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      DEPLOY_ROLE_ARN:
+        required: true
+      TEAMS_WEBHOOK_URL:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: mi-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      previous-task-def: ${{ steps.current.outputs.task-def-arn }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Task actual
+        id: current
+        run: |
+          CURRENT_ARN=$(aws ecs describe-services \
+            --cluster ${{ inputs.cluster }} \
+            --services ${{ inputs.service }} \
+            --query 'services[0].taskDefinition' -o text)
+          echo "task-def-arn=$CURRENT_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Descargar task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ inputs.service }} \
+            --query 'taskDefinition' > task-definition.json
+
+      - name: Insertar imagen
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: mi-app
+          image: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image-tag }}
+
+      - name: Deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ inputs.service }}
+          cluster: ${{ inputs.cluster }}
+          wait-for-service-stability: true
+          wait-for-minutes: 10
+
+  smoke-tests:
+    needs: deploy
+    if: inputs.skip-smoke-tests != true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          npx newman run tests/smoke/${{ inputs.environment }}.postman_collection.json \
+            --env-var base_url=https://${{ inputs.environment }}.miapp.com
+
+  rollback:
+    needs: [deploy, smoke-tests]
+    if: failure() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - run: |
+          aws ecs update-service \
+            --cluster ${{ inputs.cluster }} \
+            --service ${{ inputs.service }} \
+            --task-definition ${{ needs.deploy.outputs.previous-task-def }} \
+            --force-new-deployment
+          aws ecs wait services-stable \
+            --cluster ${{ inputs.cluster }} \
+            --services ${{ inputs.service }}
+
+      - run: |
+          curl -H "Content-Type: application/json" -d '{
+            "text": "Rollback automático en '"${{ inputs.environment }}"'"
+          }' ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+  notify-success:
+    needs: [deploy, smoke-tests]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -H "Content-Type: application/json" -d '{
+            "text": "Deploy exitoso a '"${{ inputs.environment }}"' — '"${{ inputs.image-tag }}"'"
+          }' ${{ secrets.TEAMS_WEBHOOK_URL }}

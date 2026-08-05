@@ -1,0 +1,58 @@
+{
+  "info": {
+    "name": "mi-app - smoke tests - dev",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status code es 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('respuesta indica status ok', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Greeting endpoint",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/greeting?name=smoke-test"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status code es 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('mensaje contiene el nombre enviado', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.message).to.include('smoke-test');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
