@@ -55,3 +55,5 @@ curl http://localhost:3000/health
 
 - El `Dockerfile` corre como usuario `node` (no root) y usa multi-stage build para no llevar devDependencies a producción.
 - Si prefieres probar el rollback a propósito, puedes romper temporalmente el endpoint `/health` (ej. devolver 500) y volver a desplegar, para forzar que falle el smoke test y veas el job `rollback` actuar.
+
+test1
