@@ -1,0 +1,33 @@
+name: Deploy prod
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types: 
+      - completed
+    branches:
+      - main
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+
+    uses: ./.github/workflows/_deploy_reusable.yaml
+
+    with:
+      environment: production
+      cluster: cluster-prod
+      service: mi-app-prod
+      image-tag: main-latest
+
+    secrets:
+      DEPLOY_ROLE_ARN: ${{ secrets.PROD_DEPLOY_ROLE_ARN }}
