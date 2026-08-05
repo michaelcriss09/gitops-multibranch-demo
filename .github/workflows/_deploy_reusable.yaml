@@ -50,7 +50,7 @@ jobs:
           CURRENT_ARN=$(aws ecs describe-services \
             --cluster ${{ inputs.cluster }} \
             --services ${{ inputs.service }} \
-            --query 'services[0].taskDefinition' -o text)
+            --query 'services[0].taskDefinition' --output text)
           echo "task-def-arn=$CURRENT_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Descargar task definition
