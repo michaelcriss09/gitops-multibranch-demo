@@ -15,10 +15,6 @@ on:
       image-tag:
         required: true
         type: string
-      skip-smoke-tests:
-        required: false
-        type: boolean
-        default: false
     secrets:
       DEPLOY_ROLE_ARN:
         required: true
@@ -79,6 +75,7 @@ jobs:
           cluster: ${{ inputs.cluster }}
           wait-for-service-stability: true
           wait-for-minutes: 10
+
   rollback:
     needs: [deploy]
     if: failure() && needs.deploy.result == 'failure'
