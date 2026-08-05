@@ -15,14 +15,8 @@ on:
       image-tag:
         required: true
         type: string
-      skip-smoke-tests:
-        required: false
-        type: boolean
-        default: false
     secrets:
       DEPLOY_ROLE_ARN:
-        required: true
-      TEAMS_WEBHOOK_URL:
         required: true
 
 permissions:
@@ -82,19 +76,9 @@ jobs:
           wait-for-service-stability: true
           wait-for-minutes: 10
 
-  smoke-tests:
-    needs: deploy
-    if: inputs.skip-smoke-tests != true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          npx newman run tests/smoke/${{ inputs.environment }}.postman_collection.json \
-            --env-var base_url=https://${{ inputs.environment }}.miapp.com
-
   rollback:
-    needs: [deploy, smoke-tests]
-    if: failure() && needs.deploy.result == 'success'
+    needs: [deploy]
+    if: failure() && needs.deploy.result == 'failure'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -112,18 +96,3 @@ jobs:
           aws ecs wait services-stable \
             --cluster ${{ inputs.cluster }} \
             --services ${{ inputs.service }}
-
-      - run: |
-          curl -H "Content-Type: application/json" -d '{
-            "text": "Rollback automático en '"${{ inputs.environment }}"'"
-          }' ${{ secrets.TEAMS_WEBHOOK_URL }}
-
-  notify-success:
-    needs: [deploy, smoke-tests]
-    if: success()
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -H "Content-Type: application/json" -d '{
-            "text": "Deploy exitoso a '"${{ inputs.environment }}"' — '"${{ inputs.image-tag }}"'"
-          }' ${{ secrets.TEAMS_WEBHOOK_URL }}

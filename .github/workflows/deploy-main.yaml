@@ -16,11 +16,12 @@ concurrency:
 jobs:
   deploy:
     if: github.event.workflow_run.conclusion == 'success'
+    environment: production
     permissions:
       id-token: write
       contents: read
 
-    uses: ./.github/workflows/_deploy-reusable.yml
+    uses: ./.github/workflows/_deploy_reusable.yaml
 
     with:
       environment: production
@@ -30,4 +31,3 @@ jobs:
 
     secrets:
       DEPLOY_ROLE_ARN: ${{ secrets.PROD_DEPLOY_ROLE_ARN }}
-      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
