@@ -1,26 +1,33 @@
-name: Deploy dev
+name: Deploy prod
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [dev]
+  workflow_run:
+    workflows:
+      - CI
+    types: 
+      - completed
+    branches:
+      - main
 
 concurrency:
-  group: deploy-dev
+  group: deploy-prod
   cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.event.pull_request.merged == true
+    if: github.event.workflow_run.conclusion == 'success'
     permissions:
       id-token: write
       contents: read
+
     uses: ./.github/workflows/_deploy-reusable.yml
+
     with:
-      environment: dev
-      cluster: cluster-dev
-      service: mi-app-dev
-      image-tag: dev-latest
+      environment: production
+      cluster: cluster-prod
+      service: mi-app-prod
+      image-tag: main-latest
+
     secrets:
-      DEPLOY_ROLE_ARN: ${{ secrets.DEV_DEPLOY_ROLE_ARN }}
+      DEPLOY_ROLE_ARN: ${{ secrets.PROD_DEPLOY_ROLE_ARN }}
       TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
